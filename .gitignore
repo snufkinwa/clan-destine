@@ -1,0 +1,7 @@
+node_modules
+dist
+*.mp3
+*.m4a
+*.DS_Store
+public/models
+server/.env
