@@ -1,10 +1,10 @@
-# Fantasy Rhythm Game
+# clan::destine
 
 ![Game Screenshot](https://www.geocities.ws/pixxydreemz1/dragonwcrystalball.gif)
 
 ## Overview
 
-Welcome to the Fantasy Rhythm Game! (Still deciding on a name) This 3D experience combines rhythm-based gameplay with a fantasy setting, allowing players to immerse themselves in a fantasy world based on their music uploads. With real-time music analysis, the game generates rhythm boxes on the fly.
+Welcome to clan::destine. This 3D experience combines rhythm-based gameplay with a fantasy setting, allowing players to immerse themselves in a fantasy world based on their music uploads. With real-time music analysis, the game generates rhythm boxes on the fly.
 
 **Current Status:** 🚧 _Under Construction_
 
