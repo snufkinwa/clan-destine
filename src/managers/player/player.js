@@ -1,22 +1,17 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 import { updateCameraBehindVRM } from "../../utils.js";
-import { animateHandGrips, playAnimation } from "./actions.js";
+import { loadPlayerAnimations, playAnimation } from "./actions.js";
 
 let currentVrm = null;
 let leftSword = null;
 let rightSword = null;
 let mixer = null;
 
-// Hardcoded sword paths
-const goldSwordPath =
-  "./models/L6FantasySwordVer.1.1_Black/L6FantasySwordVer.1.0.fbx";
-const blackSwordPath =
-  "./models/L6FantasySwordVer.1.1_Gold/L6FantasySwordVer.1.0.fbx";
+const blueSwordPath = "./models/song_of_broken_pines_sword_free.glb";
+const axePath = "./models/verdict_axe_free.glb";
 
-// Initialize the player with the VRM model and attach the swords
 export function initPlayer(
   scene,
   camera,
@@ -25,20 +20,17 @@ export function initPlayer(
 ) {
   const gltfLoader = new GLTFLoader();
   gltfLoader.crossOrigin = "anonymous";
-  gltfLoader.register((parser) => {
-    return new VRMLoaderPlugin(parser);
-  });
+  gltfLoader.register((parser) => new VRMLoaderPlugin(parser));
 
   return new Promise((resolve, reject) => {
-    // Load the VRM model
     gltfLoader.load(
       vrmPath,
       (gltf) => {
         const vrm = gltf.userData.vrm;
+
         if (currentVrm) {
           scene.remove(currentVrm.scene);
-
-          VRMUtils.deepDispose(currentVrm.scene);
+          VRMUtils.rotateVRM1(vrm);
         }
 
         currentVrm = vrm;
@@ -48,25 +40,30 @@ export function initPlayer(
           obj.frustumCulled = false;
         });
 
+        vrm.firstPerson.setup();
+
         mixer = new THREE.AnimationMixer(vrm.scene);
 
-        // Load and attach the swords
         loadSwords(scene);
-
         updateCameraBehindVRM(camera, vrm);
         controls.target.copy(vrm.scene.position);
 
-        playAnimation("idle", mixer);
+        // Load animations after VRM is initialized
+        loadPlayerAnimations(vrm)
+          .then(() => {
+            playAnimation("idle", mixer);
+            console.log("Idle animation started");
+          })
+          .catch((error) => {
+            console.error("Failed to load animations:", error);
+          });
 
         resolve(vrm);
       },
-      (progress) => {
+      (progress) =>
         console.log(
-          "Loading VRM model...",
-          (progress.loaded / progress.total) * 100,
-          "%"
-        );
-      },
+          `Loading VRM model... ${(progress.loaded / progress.total) * 100}%`
+        ),
       (error) => {
         console.error("Error loading VRM model:", error);
         reject(error);
@@ -75,69 +72,115 @@ export function initPlayer(
   });
 }
 
-// Function to load and attach gold and black swords to the VRM hands
+function adjustWeapon(
+  weapon,
+  rotationX,
+  rotationY,
+  rotationZ,
+  posX,
+  posY,
+  posZ,
+  scaleX,
+  scaleY,
+  scaleZ
+) {
+  weapon.rotation.set(rotationX, rotationY, rotationZ);
+  weapon.position.set(posX, posY, posZ);
+  weapon.scale.set(scaleX, scaleY, scaleZ);
+}
+
 function loadSwords(scene) {
-  const fbxLoader = new FBXLoader();
+  const gltfLoader = new GLTFLoader();
 
-  // Load the gold sword and attach to the left hand
-  fbxLoader.load(
-    goldSwordPath,
-    (fbx) => {
-      console.log("Gold sword loaded:", fbx);
-      leftSword = fbx.clone();
-      const leftHand = currentVrm.humanoid.getNormalizedBoneNode("leftHand");
+  gltfLoader.load(
+    blueSwordPath,
+    (gltf) => {
+      console.log("Blue sword loaded:", gltf);
+      // Find the first mesh in the loaded model
+      const swordMesh = gltf.scene.getObjectByProperty("type", "Mesh");
+      if (swordMesh) {
+        const swordContainer = new THREE.Object3D();
+        swordContainer.add(swordMesh);
 
-      if (leftHand) {
-        leftHand.add(leftSword);
-        leftSword.position.set(0.05, 0, 0.1);
-        leftSword.scale.set(0.01, 0.01, 0.01); // Adjust position as needed
+        swordMesh.position.set(0, 0, 0);
+        swordMesh.rotation.set(0, 0, 0);
+        const leftHand = currentVrm.humanoid.getNormalizedBoneNode("leftHand");
+        if (leftHand) {
+          leftHand.add(swordContainer);
+
+          swordContainer.position.set(0.05, -0.07, 0.35);
+          swordContainer.rotation.set(2, -1.5, -Math.PI / 1.5);
+
+          swordContainer.rotateOnAxis(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+
+          swordContainer.rotateOnAxis(new THREE.Vector3(1, 0, 0), Math.PI / 4);
+
+          swordContainer.scale.set(0.05, 0.05, 0.05);
+        }
+
+        leftSword = swordContainer;
+      } else {
+        console.error("No mesh found in the Blue sword model");
       }
     },
     (progress) => {
       console.log(
-        "Loading gold sword...",
+        "Loading Blue sword...",
         (progress.loaded / progress.total) * 100,
         "%"
       );
     },
     (error) => {
-      console.error("Error loading gold sword:", error);
+      console.error("Error loading Blue sword:", error);
     }
   );
 
-  // Load the black sword and attach to the right hand
-  fbxLoader.load(
-    blackSwordPath,
-    (fbx) => {
-      console.log("Black sword loaded:", fbx);
-      rightSword = fbx.clone();
-      const rightHand = currentVrm.humanoid.getNormalizedBoneNode("rightHand");
+  gltfLoader.load(
+    axePath,
+    (gltf) => {
+      console.log("Axe loaded:", gltf);
+      const axeMesh = gltf.scene.getObjectByProperty("type", "Mesh");
+      if (axeMesh) {
+        const axeContainer = new THREE.Object3D();
+        axeContainer.add(axeMesh);
 
-      if (rightHand) {
-        rightHand.add(rightSword);
-        rightSword.position.set(-0.04, 0, 0.1);
-        rightSword.scale.set(0.01, 0.01, 0.01); // Adjust position as needed
+        axeMesh.position.set(0, 0, 0);
+        axeMesh.rotation.set(0, 0, 0);
+
+        axeMesh.rotateX(Math.PI);
+
+        const rightHand =
+          currentVrm.humanoid.getNormalizedBoneNode("rightHand");
+        if (rightHand) {
+          rightHand.add(axeContainer);
+
+          axeContainer.position.set(-0.05, -0.07, 0.35);
+          axeContainer.rotation.set(2, 1.5, Math.PI / 1.5);
+
+          axeContainer.rotateOnAxis(new THREE.Vector3(0, 1, 0), -Math.PI / 2);
+          axeContainer.rotateOnAxis(new THREE.Vector3(1, 0, 0), Math.PI / 4);
+
+          axeContainer.scale.set(0.07, 0.07, 0.07);
+        }
+        rightSword = axeContainer;
+      } else {
+        console.error("No mesh found in the Axe model");
       }
     },
     (progress) => {
       console.log(
-        "Loading black sword...",
-        (progress.loaded / progress.total) * 100,
-        "%"
+        `Loading Axe... ${(progress.loaded / progress.total) * 100}%`
       );
     },
     (error) => {
-      console.error("Error loading black sword:", error);
+      console.error("Error loading Axe:", error);
     }
   );
 }
 
-// In the main animation loop, update the mixer
-function animate(deltaTime) {
-  requestAnimationFrame(animate);
-
+export function updatePlayer(deltaTime) {
   if (currentVrm) {
-    updatePlayer(deltaTime);
+    currentVrm.update(deltaTime);
   }
 
   if (mixer) {
@@ -145,25 +188,17 @@ function animate(deltaTime) {
   }
 }
 
-animate(0); // Start the animation loop
-
-// Update the player (and any animations) on every frame
-export function updatePlayer(deltaTime) {
-  if (currentVrm) {
-    currentVrm.update(deltaTime);
-  }
-}
-
-// Trigger the sword slash animation
 export function triggerSlashAnimation() {
   if (currentVrm && leftSword && rightSword) {
-    // Add sword-slashing logic here (animations or movements)
     console.log("Slash animation triggered");
     playAnimation("slash1", mixer);
   }
 }
 
-// Get the current VRM player
 export function getPlayer() {
   return currentVrm;
+}
+
+export function getMixer() {
+  return mixer;
 }

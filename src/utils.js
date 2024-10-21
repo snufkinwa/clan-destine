@@ -49,3 +49,37 @@ export function createSkydome(scene) {
   const skydome = new THREE.Mesh(skydomeGeometry, skydomeMaterial);
   scene.add(skydome);
 }
+
+export function addFogToScene(scene, color = 0xaaaaaa, near = 1, far = 100) {
+  scene.fog = new THREE.Fog(color, near, far);
+}
+
+// Handle raycasting the player to ground for positioning
+export function raycastPlayerToGround(player, groundObjects) {
+  if (!player) return;
+
+  const raycaster = new THREE.Raycaster();
+  const playerPosition = player.scene.position;
+
+  // Cast ray down from the player's position
+  raycaster.set(
+    new THREE.Vector3(playerPosition.x, playerPosition.y + 4, playerPosition.z),
+    new THREE.Vector3(0, -1, 0)
+  );
+
+  // Intersect with ground objects
+  const intersects = raycaster.intersectObjects(groundObjects, true);
+
+  if (intersects.length > 0) {
+    const intersection = intersects[0];
+    playerPosition.y = intersection.point.y;
+  }
+}
+
+export function addGroundObject(groundObjects, object) {
+  if (Array.isArray(groundObjects)) {
+    groundObjects.push(object);
+  } else {
+    console.error("groundObjects is not an array");
+  }
+}

@@ -3,9 +3,9 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { createWaves } from "./waves.js";
 import { fitCameraToObject } from "../utils.js";
-import { addGroundObject } from "../gameLogic.js";
+import { addGroundObject } from "../utils.js";
 
-export function loadEnvironment(scene, camera, controls) {
+export function loadEnvironment(scene, camera, controls, groundObjects) {
   const gltfLoader = new GLTFLoader();
   const fbxLoader = new FBXLoader();
 
@@ -161,7 +161,7 @@ export function loadEnvironment(scene, camera, controls) {
       ground.rotation.set(0, -Math.PI, 0);
 
       scene.add(ground);
-      addGroundObject(ground);
+      addGroundObject(groundObjects, ground);
     },
     (progress) => {
       console.log(
