@@ -3,11 +3,26 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 import { updateCameraBehindVRM } from "../../utils.js";
 import { loadPlayerAnimations, playAnimation } from "./actions.js";
+import {
+  initializePlayerPosition,
+  updatePlayerPosition,
+} from "./playerPositionManager.js";
 
 let currentVrm = null;
-let leftSword = null;
-let rightSword = null;
 let mixer = null;
+let animationQueue = [];
+let isAnimating = false;
+let currentAction = null;
+
+// Animation durations in seconds
+const ANIMATION_TIMINGS = {
+  idle: 1.0,
+  slash3: 0.833, // Right slash
+  slash4: 0.833, // Left slash
+  slash5: 1.0, // Both swords
+  slash6: 0.833, // Right slash variation
+  slash2: 1.0, // Both swords variation
+};
 
 const blueSwordPath = "./models/song_of_broken_pines_sword_free.glb";
 const axePath = "./models/verdict_axe_free.glb";
@@ -31,6 +46,7 @@ export function initPlayer(
         if (currentVrm) {
           scene.remove(currentVrm.scene);
           VRMUtils.rotateVRM1(vrm);
+          initializePlayerPosition(vrm);
         }
 
         currentVrm = vrm;
@@ -70,23 +86,6 @@ export function initPlayer(
       }
     );
   });
-}
-
-function adjustWeapon(
-  weapon,
-  rotationX,
-  rotationY,
-  rotationZ,
-  posX,
-  posY,
-  posZ,
-  scaleX,
-  scaleY,
-  scaleZ
-) {
-  weapon.rotation.set(rotationX, rotationY, rotationZ);
-  weapon.position.set(posX, posY, posZ);
-  weapon.scale.set(scaleX, scaleY, scaleZ);
 }
 
 function loadSwords(scene) {
@@ -181,6 +180,7 @@ function loadSwords(scene) {
 export function updatePlayer(deltaTime) {
   if (currentVrm) {
     currentVrm.update(deltaTime);
+    updatePlayerPosition(currentVrm, deltaTime);
   }
 
   if (mixer) {
@@ -188,13 +188,55 @@ export function updatePlayer(deltaTime) {
   }
 }
 
-export function triggerSlashAnimation() {
-  if (currentVrm && leftSword && rightSword) {
-    console.log("Slash animation triggered");
-    playAnimation("slash1", mixer);
+function onAnimationFinished(event) {
+  isAnimating = false;
+  if (animationQueue.length > 0) {
+    const nextAnimation = animationQueue.shift();
+    executeAnimation(nextAnimation);
+  } else {
+    playAnimation("idle", mixer);
   }
 }
 
+function executeAnimation(animationName) {
+  isAnimating = true;
+  currentAction = playAnimation(
+    animationName,
+    mixer,
+    ANIMATION_TIMINGS[animationName]
+  );
+
+  // Set up the animation to trigger onAnimationFinished when done
+  if (currentAction) {
+    currentAction.clampWhenFinished = true;
+    currentAction.loop = THREE.LoopOnce;
+    mixer.addEventListener("finished", onAnimationFinished);
+  }
+}
+
+export function triggerSlashLeft() {
+  queueAnimation("slash4");
+}
+
+export function triggerSlashRight() {
+  queueAnimation("slash3");
+}
+
+export function triggerSlashBoth() {
+  queueAnimation("slash5");
+}
+
+function queueAnimation(animationName) {
+  // If we're not currently animating or the queue is empty, execute immediately
+  if (!isAnimating && animationQueue.length === 0) {
+    executeAnimation(animationName);
+  } else {
+    // Only queue if it won't exceed our buffer
+    if (animationQueue.length < 2) {
+      animationQueue.push(animationName);
+    }
+  }
+}
 export function getPlayer() {
   return currentVrm;
 }

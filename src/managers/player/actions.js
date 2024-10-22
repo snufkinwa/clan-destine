@@ -1,4 +1,3 @@
-// actions.js
 import * as THREE from "three";
 import { loadMixamoAnimation } from "./mixamoAnimationLoader.js";
 
@@ -12,10 +11,12 @@ const animationPaths = {
   slash5: "/models/animations/slash5.fbx",
   slash6: "/models/animations/slash6.fbx",
 };
+
 export function loadPlayerAnimations(vrm) {
   const promises = Object.entries(animationPaths).map(([key, path]) =>
     loadMixamoAnimation(path, vrm).then((clip) => {
       if (clip) {
+        clip.loop = key === "idle" ? THREE.LoopRepeat : THREE.LoopOnce;
         animations[key] = clip;
         console.log(`Loaded animation: ${key}`);
       } else {
@@ -32,11 +33,20 @@ export function loadPlayerAnimations(vrm) {
 export function playAnimation(action, mixer) {
   const clip = animations[action];
   if (clip) {
+    mixer.stopAllAction();
     const actionClip = mixer.clipAction(clip);
     actionClip.reset();
+
+    if (action !== "idle") {
+      actionClip.clampWhenFinished = true;
+      actionClip.loop = THREE.LoopOnce;
+    }
+
     actionClip.play();
+    return actionClip;
   } else {
     console.warn(`Animation ${action} not found!`);
+    return null;
   }
 }
 
@@ -47,7 +57,6 @@ export function stopAnimation(mixer) {
 export function animateHandGrips(vrm, mixer) {
   if (!vrm || !mixer) return;
 
-  // Create simple hand grip animations
   const leftHandTrack = new THREE.QuaternionKeyframeTrack(
     "leftHand.quaternion",
     [0, 1],

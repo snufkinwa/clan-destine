@@ -1,31 +1,100 @@
 import * as THREE from "three";
-import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
-import { FontLoader } from "three/addons/loaders/FontLoader.js";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
+import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
 import {
   initPlayer,
   updatePlayer,
-  triggerSlashAnimation,
+  triggerSlashLeft,
+  triggerSlashRight,
+  triggerSlashBoth,
 } from "./managers/player/player.js";
-import { createSkydome, raycastPlayerToGround } from "./utils.js";
+import {
+  createSkydome,
+  raycastPlayerToGround,
+  addFogToScene,
+  updateThunderEffects,
+  triggerManualThunder,
+} from "./utils.js";
 import { spawnBox, updateBoxes } from "./managers/boxManager.js";
 import { loadEnvironment } from "./enviroment/enviroment.js";
 import * as Tone from "tone";
 
+let scene, camera, renderer, controls, clock;
+let currentPlayer,
+  audioBoxes = [],
+  audioStartTime = null;
 let groundObjects = [];
-let audioBoxes = []; // Store boxes generated from audio
-let currentPlayer = null;
+let menuGroup,
+  menuVisible = false;
 const beatDepth = 1;
-let audioStartTime = null;
-//TODO: Add a way to toggle between first and third person
-let isFirstPerson = false;
 
-let menuVisible = false;
-let menuGroup = null;
+export function initGame(canvas) {
+  setupScene(canvas);
+  setupCamera();
+  setupRenderer(canvas);
+  setupLights();
+  setupControls();
+  setupEnvironment();
+  loadPlayer();
+  createControlsMenu();
+  setupEventListeners();
+  animate();
+}
 
-function createControlsMenu(scene) {
+function setupScene(canvas) {
+  scene = new THREE.Scene();
+  addFogToScene(scene);
+  clock = new THREE.Clock();
+  clock.start();
+}
+
+function setupCamera() {
+  camera = new THREE.PerspectiveCamera(
+    30.0,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    70.0
+  );
+  camera.position.set(0.0, 1.0, 5.0);
+}
+
+function setupRenderer(canvas) {
+  renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+}
+
+function setupLights() {
+  const light = new THREE.DirectionalLight(0xffffff, 0.5);
+  light.position.set(1, 1, 1).normalize();
+  scene.add(light);
+}
+
+function setupControls() {
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enablePan = false;
+  controls.target.set(0, 1, 0);
+  controls.minDistance = 6.5;
+  controls.maxDistance = 9.5;
+  controls.update();
+}
+
+function setupEnvironment() {
+  createSkydome(scene);
+  loadEnvironment(scene, camera, controls, groundObjects);
+}
+
+function loadPlayer() {
+  const vrmPath = "./models/test2.vrm";
+  initPlayer(scene, camera, controls, vrmPath).then((player) => {
+    currentPlayer = player;
+  });
+}
+
+function createControlsMenu() {
   menuGroup = new THREE.Group();
-
   const menuGeometry = new THREE.PlaneGeometry(3, 2);
   const menuMaterial = new THREE.MeshBasicMaterial({
     color: 0x000000,
@@ -54,7 +123,7 @@ function createControlsMenu(scene) {
     };
 
     menuGroup.add(createTextMesh("Drag and drop audio file to play", 0.8));
-    menuGroup.add(createTextMesh("Controls:", 0.6));
+    menuGroup.add(createTextMesh("Controls", 0.6));
     menuGroup.add(createTextMesh("Left Arrow - Slash Left", 0.4));
     menuGroup.add(createTextMesh("Right Arrow - Slash Right", 0.2));
     menuGroup.add(createTextMesh("M - Toggle Menu", 0));
@@ -64,91 +133,7 @@ function createControlsMenu(scene) {
   scene.add(menuGroup);
 }
 
-// Process the audio data and store it for use during box generation
-export function processAudioData(boxes) {
-  audioBoxes = boxes;
-}
-
-// Generate boxes from audio beats
-function generateBoxesFromAudio(scene) {
-  if (!audioStartTime) {
-    audioStartTime = Tone.now(); // Get the current time from Tone.js
-  }
-
-  while (audioBoxes.length > 0) {
-    const boxData = audioBoxes[0];
-    const currentTime = Tone.now() - audioStartTime;
-
-    if (currentTime >= boxData.beatStart) {
-      audioBoxes.shift();
-
-      // Use the beatStart time to calculate a unique zOffset for each box
-      const zOffset = boxData.beatStart * 5;
-
-      spawnBox(scene, boxData, beatDepth, zOffset);
-    } else {
-      break;
-    }
-  }
-}
-
-// Reset box counter
-export function resetBoxCounter() {
-  boxCounter = 0;
-}
-
-// Add fog to the scene for atmosphere
-function addFogToScene(scene, color = 0xaaaaaa, near = 1, far = 100) {
-  scene.fog = new THREE.Fog(color, near, far);
-}
-
-// Initialize the game
-export function initGame(canvas) {
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-  document.body.appendChild(renderer.domElement);
-
-  const scene = new THREE.Scene();
-  addFogToScene(scene);
-
-  const camera = new THREE.PerspectiveCamera(
-    30,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-  );
-  camera.position.set(0, 1, 5);
-
-  const light = new THREE.DirectionalLight(0xffffff, 0.5);
-  light.position.set(1, 1, 1).normalize();
-  scene.add(light);
-
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enablePan = false;
-  controls.enableZoom = true;
-  controls.target.set(0, 1, 0);
-  controls.minDistance = 6.5;
-  controls.maxDistance = 9.5;
-  //TODO: Fix this so the camera doesn't go infront or below the player
-  controls.update();
-
-  // Load the skydome and environment
-  createSkydome(scene);
-  loadEnvironment(scene, camera, controls, groundObjects);
-
-  const clock = new THREE.Clock();
-  clock.start();
-
-  // Initialize the player (VRM)
-  const vrmPath = "./models/test2.vrm";
-  initPlayer(scene, camera, controls, vrmPath).then((player) => {
-    currentPlayer = player;
-  });
-
-  createControlsMenu(scene);
-
-  // Add event listener for toggling the menu and slashing
+function setupEventListeners() {
   window.addEventListener("keydown", (event) => {
     switch (event.key) {
       case "m":
@@ -158,40 +143,23 @@ export function initGame(canvas) {
         break;
       case "ArrowLeft":
         console.log("Slash Left");
-        triggerLeftSlash();
+        triggerSlashLeft();
         break;
       case "ArrowRight":
         console.log("Slash Right");
-        triggerRightSlash();
+        triggerSlashRight();
+        break;
+      case "ArrowRight" && "ArrowLeft":
+        console.log("Slash Both");
+        triggerSlashBoth();
+        break;
+      case "t":
+      case "T":
+        triggerManualThunder(); // Manual thunder trigger for testing
         break;
     }
   });
 
-  // Main animation loop
-  function animate() {
-    requestAnimationFrame(animate);
-
-    const deltaTime = clock.getDelta();
-
-    // Update the player (VRM) animations
-    if (currentPlayer) {
-      updatePlayer(deltaTime);
-      raycastPlayerToGround(currentPlayer, groundObjects);
-    }
-
-    // Generate boxes based on the audio input
-    generateBoxesFromAudio(scene);
-
-    // Update the positions of the boxes
-    updateBoxes(deltaTime);
-
-    // Render the scene
-    renderer.render(scene, camera);
-  }
-
-  animate();
-
-  // Handle window resize
   window.addEventListener("resize", () => {
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -199,4 +167,45 @@ export function initGame(canvas) {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
   });
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const deltaTime = clock.getDelta();
+
+  if (currentPlayer) {
+    updatePlayer(deltaTime);
+    raycastPlayerToGround(currentPlayer, groundObjects);
+  }
+
+  updateThunderEffects();
+
+  generateBoxesFromAudio(scene);
+  updateBoxes(deltaTime);
+
+  renderer.render(scene, camera);
+}
+
+function generateBoxesFromAudio(scene) {
+  if (!audioStartTime) {
+    audioStartTime = Tone.now();
+  }
+
+  while (audioBoxes.length > 0) {
+    const boxData = audioBoxes[0];
+    const currentTime = Tone.now() - audioStartTime;
+
+    if (currentTime >= boxData.beatStart) {
+      audioBoxes.shift();
+      const zOffset = boxData.beatStart * 5;
+      spawnBox(scene, boxData, beatDepth, zOffset);
+    } else {
+      break;
+    }
+  }
+}
+
+export function processAudioData(boxes) {
+  audioBoxes = boxes;
 }
