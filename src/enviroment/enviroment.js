@@ -2,8 +2,8 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { createWaves } from "./waves.js";
-import { fitCameraToObject } from "../utils.js";
-import { addGroundObject } from "../utils.js";
+import { fitCameraToObject } from "../utils/utils.js";
+import { addGroundObject } from "../utils/utils.js";
 
 export function loadEnvironment(scene, camera, controls, groundObjects) {
   const gltfLoader = new GLTFLoader();

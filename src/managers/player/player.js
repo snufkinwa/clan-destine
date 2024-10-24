@@ -1,31 +1,35 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
-import { updateCameraBehindVRM } from "../../utils.js";
+import { updateCameraBehindVRM } from "../../utils/utils.js";
 import { loadPlayerAnimations, playAnimation } from "./actions.js";
 import {
   initializePlayerPosition,
   updatePlayerPosition,
 } from "./playerPositionManager.js";
+import { ANIMATION_TIMINGS } from "../../utils/constants.js";
+import { checkCollisions } from "../boxManager.js";
+import { visualizeSlashArea } from "../../utils/debugVisuals.js";
 
 let currentVrm = null;
 let mixer = null;
 let animationQueue = [];
 let isAnimating = false;
 let currentAction = null;
-
-// Animation durations in seconds
-const ANIMATION_TIMINGS = {
-  idle: 1.0,
-  slash3: 0.833, // Right slash
-  slash4: 0.833, // Left slash
-  slash5: 1.0, // Both swords
-  slash6: 0.833, // Right slash variation
-  slash2: 1.0, // Both swords variation
-};
+let leftSword = null;
+let rightSword = null;
+let activeCollisionCheck = null;
 
 const blueSwordPath = "./models/song_of_broken_pines_sword_free.glb";
 const axePath = "./models/verdict_axe_free.glb";
+
+const COLLISION_WINDOWS = {
+  slash3: { start: 0.2, end: 0.5 }, // Right slash
+  slash4: { start: 0.2, end: 0.5 }, // Left slash
+  slash5: { start: 0.2, end: 0.6 }, // Both swords
+  slash6: { start: 0.2, end: 0.5 }, // Right variation
+  slash2: { start: 0.2, end: 0.6 }, // Both variation
+};
 
 export function initPlayer(
   scene,
@@ -74,7 +78,14 @@ export function initPlayer(
             console.error("Failed to load animations:", error);
           });
 
-        resolve(vrm);
+        resolve({
+          vrm,
+          toggleFirstPersonView: (isFirstPerson) => {
+            if (isFirstPerson) {
+              vrm.firstPerson.setup(); // Setup first-person when toggling
+            }
+          },
+        });
       },
       (progress) =>
         console.log(
@@ -177,6 +188,13 @@ function loadSwords(scene) {
   );
 }
 
+export function getSwords() {
+  return {
+    leftSword,
+    rightSword,
+  };
+}
+
 export function updatePlayer(deltaTime) {
   if (currentVrm) {
     currentVrm.update(deltaTime);
@@ -188,7 +206,75 @@ export function updatePlayer(deltaTime) {
   }
 }
 
+function startCollisionDetection(animationName) {
+  if (!COLLISION_WINDOWS[animationName]) return;
+
+  const window = COLLISION_WINDOWS[animationName];
+  const duration = ANIMATION_TIMINGS[animationName];
+  const startTime = window.start * duration * 1000; // Convert to milliseconds
+  const endTime = window.end * duration * 1000;
+
+  // Clear any existing collision check
+  if (activeCollisionCheck) {
+    clearInterval(activeCollisionCheck);
+  }
+
+  // Start the collision detection after the start window
+  setTimeout(() => {
+    const checkInterval = 50; // Check every 50ms during the collision window
+    let initialPositions = {
+      left: leftSword ? leftSword.getWorldPosition(new THREE.Vector3()) : null,
+      right: rightSword
+        ? rightSword.getWorldPosition(new THREE.Vector3())
+        : null,
+    };
+
+    activeCollisionCheck = setInterval(() => {
+      const currentPositions = {
+        left: leftSword
+          ? leftSword.getWorldPosition(new THREE.Vector3())
+          : null,
+        right: rightSword
+          ? rightSword.getWorldPosition(new THREE.Vector3())
+          : null,
+      };
+
+      // Determine which swords to check based on animation
+      const checkLeft = ["slash4", "slash5", "slash2"].includes(animationName);
+      const checkRight = ["slash3", "slash5", "slash2", "slash6"].includes(
+        animationName
+      );
+
+      // Perform collision checks
+      if (checkLeft && initialPositions.left && currentPositions.left) {
+        visualizeSlashArea(initialPositions.left, currentPositions.left);
+        checkCollisions(currentVrm, leftSword, null);
+      }
+
+      if (checkRight && initialPositions.right && currentPositions.right) {
+        visualizeSlashArea(initialPositions.right, currentPositions.right);
+        checkCollisions(currentVrm, null, rightSword);
+      }
+
+      // Update initial positions for next check
+      initialPositions = currentPositions;
+    }, checkInterval);
+
+    // Stop collision detection after the window ends
+    setTimeout(() => {
+      clearInterval(activeCollisionCheck);
+      activeCollisionCheck = null;
+    }, endTime - startTime);
+  }, startTime);
+}
+
 function onAnimationFinished(event) {
+  // Clear any remaining collision detection
+  if (activeCollisionCheck) {
+    clearInterval(activeCollisionCheck);
+    activeCollisionCheck = null;
+  }
+
   isAnimating = false;
   if (animationQueue.length > 0) {
     const nextAnimation = animationQueue.shift();
@@ -206,11 +292,13 @@ function executeAnimation(animationName) {
     ANIMATION_TIMINGS[animationName]
   );
 
-  // Set up the animation to trigger onAnimationFinished when done
   if (currentAction) {
     currentAction.clampWhenFinished = true;
     currentAction.loop = THREE.LoopOnce;
     mixer.addEventListener("finished", onAnimationFinished);
+
+    // Start collision detection for this animation
+    startCollisionDetection(animationName);
   }
 }
 
@@ -227,16 +315,13 @@ export function triggerSlashBoth() {
 }
 
 function queueAnimation(animationName) {
-  // If we're not currently animating or the queue is empty, execute immediately
   if (!isAnimating && animationQueue.length === 0) {
     executeAnimation(animationName);
-  } else {
-    // Only queue if it won't exceed our buffer
-    if (animationQueue.length < 2) {
-      animationQueue.push(animationName);
-    }
+  } else if (animationQueue.length < 2) {
+    animationQueue.push(animationName);
   }
 }
+
 export function getPlayer() {
   return currentVrm;
 }

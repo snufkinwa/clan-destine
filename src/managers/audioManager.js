@@ -72,18 +72,25 @@ export async function processAudio(arrayBuffer, file) {
       lastBoxTime = beatStart;
       beatTimes.push(beatStart);
 
-      const rmsToColor = (rms) => {
+      const rmsToColor = (rms, lane) => {
         const intensity = Math.min(Math.floor(rms * 255), 255);
-        return (intensity << 16) | (intensity << 8) | intensity;
+        // Aqua blue: rgb(0, 255, 255) for even lanes
+        // Crimson red: rgb(220, 20, 60) for odd lanes
+        if (lane % 2 === 0) {
+          return (0 << 16) | (intensity << 8) | intensity; // Aqua blue with intensity
+        } else {
+          return (220 << 16) | (20 << 8) | 60; // Crimson red
+        }
       };
 
+      const lane = Math.floor(Math.random() * 4);
       boxes.push({
-        lane: Math.floor(Math.random() * 4),
+        lane: lane,
         colspan: 1,
         type: "block",
         beatStart: beatStart,
         beatDuration: 1,
-        color: rmsToColor(features.rms),
+        color: rmsToColor(features.rms, lane),
         rms: features.rms,
       });
     }

@@ -8,6 +8,7 @@ import {
   triggerSlashLeft,
   triggerSlashRight,
   triggerSlashBoth,
+  getSwords,
 } from "./managers/player/player.js";
 import {
   createSkydome,
@@ -15,12 +16,24 @@ import {
   addFogToScene,
   updateThunderEffects,
   triggerManualThunder,
-} from "./utils.js";
+} from "./utils/utils.js";
 import { spawnBox, updateBoxes } from "./managers/boxManager.js";
 import { loadEnvironment } from "./enviroment/enviroment.js";
 import * as Tone from "tone";
+import {
+  createDebugVisuals,
+  updateHitBoxPositions,
+  toggleDebugVisuals,
+  initDebugScene,
+} from "./utils/debugVisuals.js";
+import {
+  BLOCK_PLACEMENT_SQUARE_SIZE,
+  TOTAL_LANES,
+  TOTAL_ROWS,
+} from "./utils/constants.js";
+import { createCameraSystems } from "./utils/cameraView.js";
 
-let scene, camera, renderer, controls, clock;
+let scene, camera, renderer, controls, clock, cameraSystem;
 let currentPlayer,
   audioBoxes = [],
   audioStartTime = null;
@@ -40,6 +53,12 @@ export function initGame(canvas) {
   createControlsMenu();
   setupEventListeners();
   animate();
+  createDebugVisuals(
+    scene,
+    TOTAL_LANES,
+    TOTAL_ROWS,
+    BLOCK_PLACEMENT_SQUARE_SIZE
+  );
 }
 
 function setupScene(canvas) {
@@ -47,6 +66,7 @@ function setupScene(canvas) {
   addFogToScene(scene);
   clock = new THREE.Clock();
   clock.start();
+  initDebugScene(scene);
 }
 
 function setupCamera() {
@@ -90,6 +110,11 @@ function loadPlayer() {
   const vrmPath = "./models/test2.vrm";
   initPlayer(scene, camera, controls, vrmPath).then((player) => {
     currentPlayer = player;
+
+    if (currentPlayer && currentPlayer.vrm && currentPlayer.vrm.scene) {
+      cameraSystem = createCameraSystems(camera, currentPlayer);
+      console.log("Camera system initialized");
+    }
   });
 }
 
@@ -157,6 +182,25 @@ function setupEventListeners() {
       case "T":
         triggerManualThunder(); // Manual thunder trigger for testing
         break;
+      case "c":
+      case "C":
+        console.log("C pressed, camera system:", cameraSystem);
+        if (cameraSystem && currentPlayer) {
+          console.log("Toggling camera view");
+          cameraSystem.toggleFirstPerson();
+          controls.enabled = !cameraSystem.isFirstPerson();
+          console.log(
+            "Camera view toggled, first person:",
+            cameraSystem.isFirstPerson()
+          );
+        } else {
+          console.log("Camera system or player not ready");
+        }
+        break;
+      case "d":
+      case "D":
+        toggleDebugVisuals();
+        break;
     }
   });
 
@@ -177,6 +221,13 @@ function animate() {
   if (currentPlayer) {
     updatePlayer(deltaTime);
     raycastPlayerToGround(currentPlayer, groundObjects);
+
+    cameraSystem.update(deltaTime);
+
+    const { leftSword, rightSword } = getSwords();
+    if (leftSword && rightSword) {
+      updateHitBoxPositions(leftSword, rightSword);
+    }
   }
 
   updateThunderEffects();
