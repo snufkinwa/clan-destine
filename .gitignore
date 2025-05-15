@@ -1,7 +1,32 @@
-node_modules
-dist
+# Node/Vite frontend
+frontend/node_modules/
+frontend/dist/
+
+# Python backend
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+venv/
+.env
+backend/.env
+
+# Media
 *.mp3
 *.m4a
-*.DS_Store
-public/models
-server/.env
+*.wav
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Models / build assets
+public/models/
+
+# Docker
+*.log
+*.pid
+*.sock
+docker-compose.override.yml
