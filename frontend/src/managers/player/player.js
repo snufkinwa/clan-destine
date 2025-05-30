@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
-import { VRMCoreLoaderPlugin } from "@pixiv/three-vrm-core";
+import { VRMLoaderPlugin } from "@pixiv/three-vrm";
 import { updateCameraBehindVRM } from "../../utils/utils.js";
 import {
   loadPlayerAnimations,
@@ -44,7 +43,7 @@ export function initPlayer(
 ) {
   const gltfLoader = new GLTFLoader();
   gltfLoader.crossOrigin = "anonymous";
-  gltfLoader.register((parser) => new VRMCoreLoaderPlugin(parser));
+  gltfLoader.register((parser) => new VRMLoaderPlugin(parser)); // Changed to VRMLoaderPlugin
 
   return new Promise((resolve, reject) => {
     gltfLoader.load(
@@ -54,7 +53,7 @@ export function initPlayer(
 
         if (currentVrm) {
           scene.remove(currentVrm.scene);
-          VRMUtils.rotateVRM1(vrm);
+          // VRMUtils.rotateVRM1(vrm);
           initializePlayerPosition(vrm);
         }
 
@@ -64,9 +63,6 @@ export function initPlayer(
         vrm.scene.traverse((obj) => {
           obj.frustumCulled = false;
         });
-
-        const firstPerson = vrm.userData.vrmCore.firstPerson;
-        firstPerson.setup();
 
         mixer = new THREE.AnimationMixer(vrm.scene);
 
@@ -218,7 +214,7 @@ function startCollisionDetection(animationName) {
 
   // Start the collision detection after the start window
   setTimeout(() => {
-    const checkInterval = 50; // Check every 50ms during the collision window
+    const checkInterval = 50;
     let initialPositions = {
       left: leftSword ? leftSword.getWorldPosition(new THREE.Vector3()) : null,
       right: rightSword

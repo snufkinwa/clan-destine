@@ -21,7 +21,7 @@ app.add_middleware(
 # Mount the frontend static files
 app.mount("/", StaticFiles(directory="frontend_dist", html=True), name="frontend")
 
-@app.post("/analyze-audio/")
+@app.post("/api/analyze-audio/")
 async def analyze_audio(file: UploadFile = File(...)):
     # Create a temporary file
     suffix = os.path.splitext(file.filename)[-1]
@@ -73,7 +73,7 @@ async def analyze_audio(file: UploadFile = File(...)):
             os.remove(tmp_path)
 
 # Add a health check endpoint for container monitoring
-@app.get("/health")
+@app.get("/api/health")
 def health_check():
     return {"status": "healthy"}
 

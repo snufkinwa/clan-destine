@@ -113,10 +113,10 @@ async function loadPlayer() {
 
   try {
     const player = await initPlayer(scene, camera, controls, vrmPath);
-    currentPlayer = player;
+    currentPlayer = player; // player IS the VRM object
 
-    if (currentPlayer && currentPlayer.vrm) {
-      const vrm = currentPlayer.vrm;
+    if (currentPlayer) {
+      const vrm = currentPlayer; // currentPlayer is already the VRM
 
       // Setup firstPerson visibility layers
       if (vrm.firstPerson && typeof vrm.firstPerson.setup === "function") {
@@ -129,8 +129,10 @@ async function loadPlayer() {
       console.log("Camera system initialized with VRM:", vrm);
 
       // Set initial layer state to third-person
-      camera.layers.enable(vrm.firstPerson.thirdPersonOnlyLayer);
-      camera.layers.disable(vrm.firstPerson.firstPersonOnlyLayer);
+      if (vrm.firstPerson) {
+        camera.layers.enable(vrm.firstPerson.thirdPersonOnlyLayer);
+        camera.layers.disable(vrm.firstPerson.firstPersonOnlyLayer);
+      }
     }
   } catch (error) {
     console.error("Failed to load player:", error);
@@ -190,8 +192,8 @@ function setupEventListeners() {
         triggerSlashLeft();
         break;
       case "ArrowRight":
-        if (cameraSystem?.isFirstPerson() && currentPlayer?.vrm) {
-          triggerSlashRightBone(currentPlayer.vrm); // bone-based slash
+        if (cameraSystem?.isFirstPerson() && currentPlayer) {
+          triggerSlashRightBone(currentPlayer); // currentPlayer is the VRM
         } else {
           triggerSlashRight(); // fallback to Mixamo animation
         }
@@ -208,7 +210,8 @@ function setupEventListeners() {
       case "c":
       case "C":
         console.log("Toggling camera view");
-        if (cameraSystem && currentPlayer?.vrm) {
+        if (cameraSystem && currentPlayer) {
+          // Fixed: removed .vrm check
           cameraSystem.toggleFirstPerson();
           controls.enabled = false;
           console.log(
@@ -239,6 +242,7 @@ function animate() {
   requestAnimationFrame(animate);
 
   const deltaTime = clock.getDelta();
+  const currentTime = 0;
 
   if (currentPlayer) {
     updatePlayer(deltaTime);

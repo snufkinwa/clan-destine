@@ -10,11 +10,11 @@ export function createCameraSystems(camera, vrm) {
   // Third Person Calculation
   function calculateThirdPersonOffset() {
     const avatarPosition = vrm.scene.position;
-    const distance = 6.0; // How far back the camera should be
-    const angleDegrees = 75; // Angle from the vertical (0 = top-down, 90 = level behind)
+    const distance = 6.5; // How far back the camera should be
+    const angleDegrees = 77; // Angle from the vertical (0 = top-down, 90 = level behind)
     const angleRadians = THREE.MathUtils.degToRad(angleDegrees);
 
-    const offsetX = 0; // Camera directly behind
+    const offsetX = -0.5; // Camera directly behind
     const offsetY = distance * Math.cos(angleRadians);
     const offsetZ = distance * Math.sin(angleRadians);
 
@@ -44,7 +44,7 @@ export function createCameraSystems(camera, vrm) {
     const idealLookAt = calculateThirdPersonLookAt();
 
     // Use smoother interpolation if transitioning, otherwise slerp faster
-    const t = transitioning ? 1.0 - Math.pow(0.01, timeElapsed) : 0.8; // Faster lerp for fixed view
+    const t = transitioning ? 1.0 - Math.pow(0.01, timeElapsed) : 0.1;
 
     currentPosition.lerp(idealOffset, t);
     currentLookAt.lerp(idealLookAt, t);

@@ -15,6 +15,7 @@ export function loadEnvironment(scene, camera, controls, groundObjects) {
   const cliffPath = "./models/sea_cliff_rock_face.glb";
   const groundPath = "./models/grass_filed.glb";
   const treePath = "./models/old_tree.glb";
+  const bossPath = "./models/the_queen_of_swords.glb";
 
   fbxLoader.load(
     churchRuinsPath,
@@ -172,6 +173,34 @@ export function loadEnvironment(scene, camera, controls, groundObjects) {
     },
     (error) => {
       console.error("An error occurred while loading the ground:", error);
+    }
+  );
+
+  let queenOfSwordsModel = null;
+
+  gltfLoader.load(
+    bossPath,
+    (gltf) => {
+      queenOfSwordsModel = gltf.scene;
+      console.log("The Queen of Swords loaded successfully.");
+
+      queenOfSwordsModel.position.set(10, 10, 20);
+      queenOfSwordsModel.scale.set(25, 25, 25);
+
+      scene.add(queenOfSwordsModel);
+    },
+    (progress) => {
+      console.log(
+        "Loading The Queen of Swords...",
+        (progress.loaded / progress.total) * 100,
+        "%"
+      );
+    },
+    (error) => {
+      console.error(
+        "An error occurred while loading The Queen of Swords:",
+        error
+      );
     }
   );
 
